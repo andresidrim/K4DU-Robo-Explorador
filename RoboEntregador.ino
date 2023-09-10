@@ -20,7 +20,6 @@ AccelStepper motor_direito(1, STEP_MOTOR_DIREITO, DIR_MOTOR_DIREITO);
 #define velocity 100 // Velocidade de rotação dos motores
 
 // MOTOR //
-// Move o robô para frente //
 
 /* ########################################################################################
 OBS: A mudança de direção dos motores será feita diretamente na velocidade dos motores
@@ -28,6 +27,7 @@ Se a velocidade ter sinal positivo (velocity > 0) o motor irá girar no sentido 
 Se a velocidade ter sinal negativo (velocity < 0) o motor irá girar no sentido anti-horário
 ######################################################################################## */
 
+// Move o robo para frente
 void MoveForward() {
   // Permite girar os motores
   digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
@@ -57,6 +57,7 @@ void MoveBackwards() {
   motor_direito.runSpeed();
 }
 
+// Faz uma curva para a esquerda
 void TurnLeft() {
   // Permite girar o motor
   digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
@@ -71,6 +72,7 @@ void TurnLeft() {
   motor_direito.runSpeed();
 }
 
+// Faz uma curva para a direita
 void TurnRight() {
   // Permite girar o motor
   digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
