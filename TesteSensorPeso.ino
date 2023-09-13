@@ -1,12 +1,15 @@
 #include "HX711.h" // Biblioteca usada pela célula de carga
 
-// Definição dos pinos //
+// Definição das variaveis //
 
 // Célula de carga //
 #define DT A1
 #define SCK A0
 
 /* Sensor usa portas analógicas A1 e A0 */
+
+// Valor calculado para obter os valores corretos
+#define SET_SCALE_VALUE 72627
 
 // Criação do objeto 'scale' //
 HX711 scale;
@@ -15,7 +18,7 @@ void setup() {
   Serial.begin(9600); // Inicia o monitor serial
 
   scale.begin(DT, SCK); // Usa a função 'begin' e recebe os pinos DT e SCK como parametros
-  scale.set_scale(72627); // Valor definido para melhor precisão nas medições
+  scale.set_scale(SET_SCALE_VALUE);
 
   /* ##############################################################################
   O valor lido pelo sensor (sem nenhum parametro dentro de set_scale())
