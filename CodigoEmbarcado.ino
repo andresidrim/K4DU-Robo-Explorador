@@ -5,20 +5,21 @@
 
 // Variaveis do motor //
 // Motor esquerdo //
-#define STEP_MOTOR_ESQUERDO 6 // A frequencia de pulsos enviados para o pino STEP controla a velocidade no motor
-#define DIR_MOTOR_ESQUERDO 7 // Controla a direção do motor (HIGH para horário | LOW para anti-horário)
-#define ENABLE_MOTOR_ESQUERDO 2 // LOW = Gira o motor | HIGH = Trava o motor
+#define LEFT_MOTOR_STEP 6 // A frequencia de pulsos enviados para o pino STEP controla a velocidade no motor
+#define LEFT_MOTOR_DIR 7 // Controla a direção do motor (HIGH para horário | LOW para anti-horário)
+#define LEFT_MOTOR_ENABLE 2 // LOW = Gira o motor | HIGH = Trava o motor
 
 // Motor direito //
-#define STEP_MOTOR_DIREITO 8
-#define DIR_MOTOR_DIREITO 9
-#define ENABLE_MOTOR_DIREITO 3
+#define RIGHT_MOTOR_STEP 8
+#define RIGHT_MOTOR_DIR 9
+#define RIGHT_MOTOR_ENABLE 3
 
-// Definição dos objetos 'motor_esquerdo' e 'motor_direito' //
-AccelStepper motor_esquerdo(1, STEP_MOTOR_ESQUERDO, DIR_MOTOR_ESQUERDO);
-AccelStepper motor_direito(1, STEP_MOTOR_DIREITO, DIR_MOTOR_DIREITO);
+// Definição dos objetos 'left_motor' e 'right_motor' //
+AccelStepper left_motor(1, LEFT_MOTOR_STEP, LEFT_MOTOR_DIR);
+AccelStepper right_motor(1, RIGHT_MOTOR_STEP, RIGHT_MOTOR_DIR);
 
-#define velocity 200 // Velocidade de rotação dos motores
+#define VELOCITY 200 // Velocidade de rotação dos motores = 200 passos por segundo
+#define ACCELERATION 200 // Velocidade da aceleração dos motores = 200 passos por segundo²
 
 // Variaveis do timer //
 unsigned long initialTime; // Tempo inicial do timer em milissegundos
@@ -37,79 +38,79 @@ NewPing usensor(TRIGGER, ECHO, MAX_DISTANCE); // Definição do objeto 'usensor'
 
 /* ########################################################################################
 OBS: A mudança de direção dos motores será feita diretamente na velocidade dos motores
-Se a velocidade ter sinal positivo (velocity > 0) o motor irá girar no sentido horário
-Se a velocidade ter sinal negativo (velocity < 0) o motor irá girar no sentido anti-horário
+Se a velocidade ter sinal positivo (VELOCITY > 0) o motor irá girar no sentido horário
+Se a velocidade ter sinal negativo (VELOCITY < 0) o motor irá girar no sentido anti-horário
 ######################################################################################## */
 
 // Move o robo para frente
 void MoveForward() {
   // Permite girar os motores
-  digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
-  digitalWrite(ENABLE_MOTOR_DIREITO, LOW);
+  digitalWrite(LEFT_MOTOR_ENABLE, LOW);
+  digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
 
   // Define a velocidade de rotação dos motores
-  motor_esquerdo.setSpeed(velocity); // Gira no sentido horário
-  motor_direito.setSpeed(-velocity); // Gira no sentido anti-horário
+  left_motor.setSpeed(VELOCITY); // Gira no sentido horário
+  right_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
 
   // Gira os motores
-  motor_esquerdo.runSpeed(); 
-  motor_direito.runSpeed();
+  left_motor.runSpeed(); 
+  right_motor.runSpeed();
 }
 
 // Move o robô para trás //
 void MoveBackwards() {
   // Permite girar o motor
-  digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
-  digitalWrite(ENABLE_MOTOR_DIREITO, LOW);
+  digitalWrite(LEFT_MOTOR_ENABLE, LOW);
+  digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
 
   // Define a velocidade de rotação dos motores
-  motor_esquerdo.setSpeed(-velocity); // Gira no sentido anti-horário
-  motor_direito.setSpeed(velocity); // Gira no sentido horário
+  left_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
+  right_motor.setSpeed(VELOCITY); // Gira no sentido horário
 
   // Gira os motores
-  motor_esquerdo.runSpeed();
-  motor_direito.runSpeed();
+  left_motor.runSpeed();
+  right_motor.runSpeed();
 }
 
 // Faz uma curva para a esquerda
 void TurnLeft() {
   // Permite girar o motor
-  digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
-  digitalWrite(ENABLE_MOTOR_DIREITO, LOW);
+  digitalWrite(LEFT_MOTOR_ENABLE, LOW);
+  digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
 
   // Define a velocidade de rotação dos motores
-  motor_esquerdo.setSpeed(velocity); // Gira no sentido horário
-  motor_direito.setSpeed(velocity); // Gira no sentido horário
+  left_motor.setSpeed(VELOCITY); // Gira no sentido horário
+  right_motor.setSpeed(VELOCITY); // Gira no sentido horário
 
   // Gira os motores
-  motor_esquerdo.runSpeed();
-  motor_direito.runSpeed();
+  left_motor.runSpeed();
+  right_motor.runSpeed();
 }
 
 // Faz uma curva para a direita
 void TurnRight() {
   // Permite girar o motor
-  digitalWrite(ENABLE_MOTOR_ESQUERDO, LOW);
-  digitalWrite(ENABLE_MOTOR_DIREITO, LOW);
+  digitalWrite(LEFT_MOTOR_ENABLE, LOW);
+  digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
 
   // Define a velocidade de rotação dos motores
-  motor_esquerdo.setSpeed(-velocity); // Gira no sentido anti-horário
-  motor_direito.setSpeed(-velocity); // Gira no sentido anti-horário
+  left_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
+  right_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
 
   // Gira os motores
-  motor_esquerdo.runSpeed();
-  motor_direito.runSpeed();
+  left_motor.runSpeed();
+  right_motor.runSpeed();
 }
 
 // Para o robô //
 void Stop() {
   // Trava os motores
-  digitalWrite(ENABLE_MOTOR_ESQUERDO, HIGH);
-  digitalWrite(ENABLE_MOTOR_DIREITO, HIGH);
+  digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
+  digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
 
   // Para os motores
-  motor_esquerdo.stop();
-  motor_direito.stop();
+  left_motor.stop();
+  right_motor.stop();
 }
 
 // SENSOR ULTRASONICO //
@@ -124,22 +125,22 @@ void setup() {
   Serial.begin(9600);
 
   // Definição do pino ENABLE como saida
-  pinMode(ENABLE_MOTOR_ESQUERDO, OUTPUT);
-  pinMode(ENABLE_MOTOR_DIREITO, OUTPUT);
+  pinMode(LEFT_MOTOR_ENABLE, OUTPUT);
+  pinMode(RIGHT_MOTOR_ENABLE, OUTPUT);
 
   // Configurações do motor esquerdo
-  motor_esquerdo.setMaxSpeed(200); // Velocidade máxima do motor = 100 passos por segundo
-  motor_esquerdo.setAcceleration(200); // Aceleração do motor = 100 passos por segundo²
+  left_motor.setMaxSpeed(VELOCITY); // Define a velocidade máxima do motor
+  left_motor.setAcceleration(ACCELERATION); // Define a aceleração do motor
 
   // Configurações do motor direito
-  motor_direito.setMaxSpeed(200);
-  motor_direito.setAcceleration(200);
+  right_motor.setMaxSpeed(VELOCITY);
+  right_motor.setAcceleration(ACCELERATION);
 
   // Os motores devem levar em torno de 1 segundo para atingir a velocidade máxima //
 
   // Motores ficam inativos por um segundo
-  digitalWrite(ENABLE_MOTOR_ESQUERDO, HIGH);
-  digitalWrite(ENABLE_MOTOR_DIREITO, HIGH);
+  digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
+  digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
   delay(1000);
 }
 
