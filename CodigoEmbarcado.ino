@@ -1,7 +1,14 @@
 #include <NewPing.h> // Bilioteca para o sensor ultrasonico
 #include <AccelStepper.h> // Biblioteca usada para o  motor de passo
+#include <HX711.h> // Biblioteca usada pela célula de carga
+#include <LiquidCrystal.h> // Biblioteca usada pelo LCD
 
-// Definição dos pinos //
+
+#pragma region Variaveis
+
+// Definição das variaveis //
+
+#pragma region Variaveis do motor
 
 // Variaveis do motor //
 // Motor esquerdo //
@@ -21,9 +28,17 @@ AccelStepper right_motor(1, RIGHT_MOTOR_STEP, RIGHT_MOTOR_DIR);
 #define VELOCITY 200 // Velocidade de rotação dos motores = 200 passos por segundo
 #define ACCELERATION 200 // Velocidade da aceleração dos motores = 200 passos por segundo²
 
+#pragma endregion
+
+#pragma region Variaveis Timer
+
 // Variaveis do timer //
 unsigned long initialTime; // Tempo inicial do timer em milissegundos
 unsigned long delayTime = 5000; // Tempo desejado em milissegundos (5 segundos)
+
+#pragma endregion
+
+#pragma region Varaveis do sensor ultrasonico
 
 // Variaveis do Sensor Ultrasonico (HC-SR04) //
 #define ECHO 11 // Pino de recebimento das ondas do sensor
@@ -32,9 +47,76 @@ unsigned long delayTime = 5000; // Tempo desejado em milissegundos (5 segundos)
 
 NewPing usensor(TRIGGER, ECHO, MAX_DISTANCE); // Definição do objeto 'usensor'
 
+#pragma endregion
+
+#pragma region Variaveis da celula de carga
+
+// Variaveis da celula de carga //
+
+#define DT A1
+#define SCK A0
+
+/* Sensor usa portas analógicas A1 e A0 */
+
+// Valor calculado para obter os valores corretos
+#define SET_SCALE_VALUE 72627
+
+// Criação do objeto 'scale' //
+HX711 scale;
+
+#pragma endregion
+
+#pragma region Variaveis dos botões
+
+bool confirmButton = false;
+bool resetButton = false;
+uint8_t firstStationButton = 1;
+uint8_t secondStationButton = 2;
+uint8_t thirdStationButton = 3;
+
+#pragma endregion
+
+#pragma region Varaveis para checagem da rotina
+
+bool hasConfirmedWeight = false;
+bool hasConfirmedPath = false;
+
+#pragma endregion
+
+#pragma endregion
+
+
+
+#pragma region Funções
+
 // FUNÇÕES //
 
+#pragma region Funções do motor
+
 // MOTOR //
+
+#pragma region Função para definição dos pinos do motor
+
+// Definição dos pinos //
+void MotorPinModes() {
+  // Definição do pino ENABLE como saida
+  pinMode(LEFT_MOTOR_ENABLE, OUTPUT);
+  pinMode(RIGHT_MOTOR_ENABLE, OUTPUT);
+}
+
+void MotorSettings(uint8_t motorVel, uint8_t motorAccel) {
+  // Configurações do motor esquerdo
+  left_motor.setMaxSpeed(motorVel); // Define a velocidade máxima do motor
+  left_motor.setAcceleration(motorAccel); // Define a aceleração do motor
+
+  // Configurações do motor direito
+  right_motor.setMaxSpeed(motorVel);
+  right_motor.setAcceleration(motorAccel);
+
+  // Os motores devem levar em torno de 1 segundo para atingir a velocidade máxima //
+}
+
+#pragma endregion
 
 /* ########################################################################################
 OBS: A mudança de direção dos motores será feita diretamente na velocidade dos motores
@@ -113,6 +195,10 @@ void Stop() {
   right_motor.stop();
 }
 
+#pragma endregion
+
+#pragma region Funções do sensor ultrasonico
+
 // SENSOR ULTRASONICO //
 
 // Retorna a distancia lida do sensor ultrasonico
@@ -121,31 +207,106 @@ uint8_t GetUltrasonicDistance() {
   return distance; // Retorna a distancia
 }
 
+#pragma endregion
+
+#pragma region Funções da celula de carga
+
+// Usa a função 'begin' e recebe os pinos DT e SCK como parametros
+void ScalePinSettings() { scale.begin(DT, SCK); }
+
+void ScaleSettings() {
+  scale.set_scale(SET_SCALE_VALUE);
+  scale.tare(); // Tira uma tara dos valores que recebe, baseando-se nos valores de set_scale
+}
+
+#pragma endregion
+
+#pragma region Funções da rotina
+
+void LoadRobot() {
+    float weight = scale.get_units(10);
+
+    // Mostra o peso no LCD
+
+    hasConfirmedWeight = confirmButton;
+}
+
+void SelectPath() {
+
+}
+
+#pragma endregion
+
+#pragma endregion
+
 void setup() {
   Serial.begin(9600);
 
-  // Definição do pino ENABLE como saida
-  pinMode(LEFT_MOTOR_ENABLE, OUTPUT);
-  pinMode(RIGHT_MOTOR_ENABLE, OUTPUT);
+  ScalePinSettings(); // Definição dos pinos da celuca de carga
+  ScaleSettings(); // Define o valor da tara
 
-  // Configurações do motor esquerdo
-  left_motor.setMaxSpeed(VELOCITY); // Define a velocidade máxima do motor
-  left_motor.setAcceleration(ACCELERATION); // Define a aceleração do motor
-
-  // Configurações do motor direito
-  right_motor.setMaxSpeed(VELOCITY);
-  right_motor.setAcceleration(ACCELERATION);
-
-  // Os motores devem levar em torno de 1 segundo para atingir a velocidade máxima //
-
-  // Motores ficam inativos por um segundo
-  digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
-  digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
-  delay(1000);
+  MotorPinModes(); // Define os motores como saida
+  MotorSettings(VELOCITY, ACCELERATION); // Define os valores de velocidade e aceleração do motor
 }
 
 void loop() {
-    initialTime = millis(); // Salva o tempo atual em milissegundos
+  /*Rotina basica do robô*/
+
+  // Objetos devem ser colocados no robô
+  // Peso deve ser confirmado -> valor do peso é salvo na memória
+  // Ordem das estações são escolhidas -> ordem é salva na memória
+  // Verifica e salva as direções necessárias para realizar o percurso
+  // Robô vai até a primeira estação e espera o peso ser removido
+  // Remoção confirmada
+  // Robô segue para a proxima estação (passos anteriores são repetidos)
+  // Quando o robô passar por todas as estações e não estiver carregando nada, ele volta para o inicio
+
+  // Peso é colocado no robo
+  if (!hasConfirmedWeight) { LoadRobot(); }
+
+  confirmButton = false;
+
+  // Caminho é escolhido
+  if (!hasConfirmedPath && hasConfirmedWeight) {
+    codigo
+  }
+  
+
+  delay(10); // Pequeno delay para evitar processamento excessivo
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*initialTime = millis(); // Salva o tempo atual em milissegundos
     
     // Roda o trecho de código enquanto o tempo atual for menor que o tempo inicial + o tempo do delay
     while(millis() < initialTime + delayTime) {
@@ -208,7 +369,4 @@ void loop() {
         Serial.print("Stop | Distance = ");
         Serial.println(GetUltrasonicDistance());
       }
-    }
-
-  delay(10); // Pequeno delay para evitar processamento excessivo
-}
+    }*/
