@@ -1,5 +1,4 @@
 // TODO
-// - Ajustar o codigo para usar o multiplexador
 // - Implementar a logica do robô no loop
 // - Organizar e limpar o codigo
 
@@ -7,7 +6,6 @@
 #include <AccelStepper.h> // Biblioteca usada para o  motor de passo
 #include <HX711.h> // Biblioteca usada pela célula de carga
 #include <LiquidCrystal_I2C.h>
-
 
 #pragma region Variaveis
 
@@ -17,21 +15,21 @@
 
 // Variaveis do motor //
 // Motor esquerdo //
-#define LEFT_MOTOR_STEP 6 // A frequencia de pulsos enviados para o pino STEP controla a velocidade no motor
-#define LEFT_MOTOR_DIR 7 // Controla a direção do motor (HIGH para horário | LOW para anti-horário)
-#define LEFT_MOTOR_ENABLE 5 // LOW = Gira o motor | HIGH = Trava o motor
+#define LEFT_MOTOR_ENABLE 9 // LOW = Gira o motor | HIGH = Trava o motor
+#define LEFT_MOTOR_STEP 10 // A frequencia de pulsos enviados para o pino STEP controla a velocidade no motor
+#define LEFT_MOTOR_DIR 11 // Controla a direção do motor (HIGH para horário | LOW para anti-horário)
 
 // Motor direito //
-#define RIGHT_MOTOR_STEP 9
-#define RIGHT_MOTOR_DIR 10
-#define RIGHT_MOTOR_ENABLE 8
+#define RIGHT_MOTOR_ENABLE 50
+#define RIGHT_MOTOR_STEP 48
+#define RIGHT_MOTOR_DIR 49
 
 // Definição dos objetos 'left_motor' e 'right_motor' //
 AccelStepper left_motor(1, LEFT_MOTOR_STEP, LEFT_MOTOR_DIR);
 AccelStepper right_motor(1, RIGHT_MOTOR_STEP, RIGHT_MOTOR_DIR);
 
-#define VELOCITY 200 // Velocidade de rotação dos motores = 200 passos por segundo
-#define ACCELERATION 200 // Velocidade da aceleração dos motores = 200 passos por segundo²
+#define VELOCITY 250 // Velocidade de rotação dos motores = 200 passos por segundo
+#define ACCELERATION 250 // Velocidade da aceleração dos motores = 200 passos por segundo²
 
 #pragma endregion
 
@@ -46,8 +44,8 @@ unsigned int waitTime = 15000; // Tempo desejado em milissegundos (5 segundos)
 #pragma region Varaveis do sensor ultrassonico
 
 // Variaveis do Sensor Ultrasonico (HC-SR04) //
-#define ECHO 11 // Pino de recebimento das ondas do sensor
-#define TRIGGER 12 // Pino de envio das ondas do sensor
+#define ECHO 52 // Pino de recepeção de dados
+#define TRIGGER 53 // Pino de envio das ondas do sensor
 #define MAX_DISTANCE 200 // Distancia máxima que o sensor vai ler em cm
 
 NewPing usensor(TRIGGER, ECHO, MAX_DISTANCE); // Definição do objeto 'usensor'
@@ -56,9 +54,10 @@ NewPing usensor(TRIGGER, ECHO, MAX_DISTANCE); // Definição do objeto 'usensor'
 
 #pragma region Variaveis do sensor infravermelho
 
-#define IR_LEFT 13
-#define IR_MIDDLE 14
-#define IR_RIGHT 15
+#define IR_FAR_LEFT 47
+#define IR_LEFT 46
+#define IR_RIGHT 45
+#define IR_FAR_RIGHT 44
 
 #pragma endregion
 
@@ -66,8 +65,8 @@ NewPing usensor(TRIGGER, ECHO, MAX_DISTANCE); // Definição do objeto 'usensor'
 
 // Variaveis da celula de carga //
 
-#define DT A1
-#define SCK A0
+#define DT A15
+#define SCK A14
 
 /* Sensor usa portas analógicas A1 e A0 */
 
@@ -81,16 +80,17 @@ HX711 scale;
 
 #pragma region Variaveis dos botões
 
-#define NEXT_BUTTON 2
-#define CONFIRM_BUTTON 3
+#define NEXT_BUTTON 45
+#define BACK_BUTTON 47
+#define CONFIRM_BUTTON 43
 
 #pragma endregion
 
 #pragma region Variaveis do LCD
 
-#define SDA A4
-#define SCL A5
-#define ADDRESS 0x27
+#define SDA A0
+#define SCL A1
+#define ADDRESS 0x27 // TODO
 
 #define COL 16
 #define ROW 2
@@ -101,9 +101,9 @@ LiquidCrystal_I2C LCD(ADDRESS, COL, ROW);
 
 #pragma region Variaveis do LED
 
-#define LED_LEFT 16
-#define LED_MIDDLE 17
-#define LED_RIGHT 18
+#define LED_LEFT 30
+#define LED_MIDDLE 29
+#define LED_RIGHT 28
 
 bool ledLeftState = HIGH;
 bool ledMiddleState = LOW;
@@ -113,7 +113,7 @@ bool ledRightState = HIGH;
 
 #pragma region Variaveis do Buzzer
 
-#define BUZZER 5
+#define BUZZER 7
 
 #pragma endregion
 
@@ -121,8 +121,24 @@ bool ledRightState = HIGH;
 
 #define STATION_AMOUNT 3
 
+#define STATION1 1
+#define STATION2 2
+#define STATION3 3
+
 bool hasConfirmedWeight = false;
 bool hasConfirmedPath = false;
+bool hasComputedPaths = false;
+bool hasCleared = false;
+
+#pragma endregion
+
+#pragma region Caminhos
+
+uint8_t pathOrder[3];
+
+bool hasBeenToStation1 = false;
+bool hasBeenToStation2 = false;
+bool hasBeenToStation3 = false;
 
 #pragma endregion
 
@@ -176,7 +192,11 @@ Se a velocidade ter sinal negativo (VELOCITY < 0) o motor irá girar no sentido 
 ######################################################################################## */
 
 // Move o robo para frente
-void MoveForward() {
+void MotorMoveForward() {
+  digitalWrite(LED_LEFT, LOW);
+  digitalWrite(LED_MIDDLE, HIGH);
+  digitalWrite(LED_RIGHT, LOW);
+
   // Permite girar os motores
   digitalWrite(LEFT_MOTOR_ENABLE, LOW);
   digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
@@ -191,7 +211,11 @@ void MoveForward() {
 }
 
 // Move o robô para trás //
-void MoveBackwards() {
+void MotorMoveBackwards() {
+  digitalWrite(LED_LEFT, LOW);
+  digitalWrite(LED_MIDDLE, HIGH);
+  digitalWrite(LED_RIGHT, LOW);
+
   // Permite girar o motor
   digitalWrite(LEFT_MOTOR_ENABLE, LOW);
   digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
@@ -206,13 +230,34 @@ void MoveBackwards() {
 }
 
 // Faz uma curva para a esquerda
-void TurnLeft() {
+void MotorTurnLeft() {
+  digitalWrite(LED_LEFT, HIGH);
+  digitalWrite(LED_MIDDLE, LOW);
+  digitalWrite(LED_RIGHT, LOW);
+
   // Permite girar o motor
   digitalWrite(LEFT_MOTOR_ENABLE, LOW);
   digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
 
   // Define a velocidade de rotação dos motores
-  left_motor.setSpeed(VELOCITY); // Gira no sentido horário
+  left_motor.stop(); // Gira no sentido horário
+  right_motor.setSpeed(VELOCITY); // Gira no sentido horário
+
+  // Gira os motores
+  // left_motor.runSpeed();
+  right_motor.runSpeed();
+}
+
+void MotorAdjustLeft() {
+  digitalWrite(LED_LEFT, LOW);
+  digitalWrite(LED_MIDDLE, HIGH);
+  digitalWrite(LED_LEFT, LOW);
+  // Permite girar o motor
+  digitalWrite(LEFT_MOTOR_ENABLE, LOW);
+  digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
+
+  // Define a velocidade de rotação dos motores
+  left_motor.setSpeed(-VELOCITY / 2); // Gira no sentido horário
   right_motor.setSpeed(VELOCITY); // Gira no sentido horário
 
   // Gira os motores
@@ -221,14 +266,36 @@ void TurnLeft() {
 }
 
 // Faz uma curva para a direita
-void TurnRight() {
+void MotorTurnRight() {
+  digitalWrite(LED_LEFT, HIGH);
+  digitalWrite(LED_MIDDLE, LOW);
+  digitalWrite(LED_LEFT, LOW);
+
   // Permite girar o motor
   digitalWrite(LEFT_MOTOR_ENABLE, LOW);
   digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
 
   // Define a velocidade de rotação dos motores
   left_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
-  right_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
+  right_motor.stop(); // Gira no sentido anti-horário
+
+  // Gira os motores
+  left_motor.runSpeed();
+  // right_motor.runSpeed();
+}
+
+void MotorAdjustRight() {
+  digitalWrite(LED_LEFT, LOW);
+  digitalWrite(LED_MIDDLE, HIGH);
+  digitalWrite(LED_LEFT, LOW);
+
+  // Permite girar o motor
+  digitalWrite(LEFT_MOTOR_ENABLE, LOW);
+  digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
+
+  // Define a velocidade de rotação dos motores
+  left_motor.setSpeed(-VELOCITY); // Gira no sentido anti-horário
+  right_motor.setSpeed(VELOCITY / 2); // Gira no sentido anti-horário
 
   // Gira os motores
   left_motor.runSpeed();
@@ -236,7 +303,10 @@ void TurnRight() {
 }
 
 // Para o robô //
-void Stop() {
+void MotorStop() {
+  digitalWrite(LED_LEFT, LOW);
+  digitalWrite(LED_MIDDLE, LOW);
+  digitalWrite(LED_LEFT, LOW);
   // Trava os motores
   digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
   digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
@@ -255,7 +325,6 @@ void Stop() {
 // Retorna a distancia lida do sensor ultrassonico
 uint8_t GetUltrasonicDistance() {
   uint8_t distance = usensor.ping_cm(); // Salva a distancia (em cm) em uma variavel
-  Serial.println(distance);
   
   return distance; // Retorna a distancia
 }
@@ -269,6 +338,10 @@ void SetScaleSettings() {
 
   scale.set_scale(SET_SCALE_VALUE);
   scale.tare(); // Tira uma tara dos valores que recebe, baseando-se nos valores de set_scale
+}
+
+bool HasRemovedWeight (float currentWeight) {
+  return abs(scale.get_units(10)) < currentWeight;
 }
 
 #pragma endregion
@@ -285,31 +358,38 @@ void SetLCDSettings() {
 #pragma region Funções do sensor infravermelho
 
 void SetIRSettings() {
+  pinMode(IR_FAR_LEFT, INPUT);
   pinMode(IR_LEFT, INPUT);
-  pinMode(IR_MIDDLE, INPUT);
   pinMode(IR_RIGHT, INPUT);
+  pinMode(IR_FAR_RIGHT, INPUT);
 }
+
+// bool DetectLeftTurn() {
+//   return (!digitalRead(IR_FAR_LEFT) && !digitalRead(IR_MIDDLE) && digitalRead(IR_RIGHT));
+// }
+
+// bool DetectRightTurn() {
+//   return (digitalRead(IR_LEFT) && !digitalRead(IR_MIDDLE) && !digitalRead(IR_RIGHT));
+// }
 
 // if digitalRead() -> preto
 // if !digitalRead() -> branco
-bool DetectLeftTurn() {
-  if (!digitalRead(IR_LEFT) && !digitalRead(IR_MIDDLE) && digitalRead(IR_RIGHT)) { return true; }
-  else { return false; }
-}
 
-bool DetectRightTurn() {
-  if (digitalRead(IR_LEFT) && !digitalRead(IR_MIDDLE) && !digitalRead(IR_RIGHT)) { return true; }
-  else { return false; }
+
+bool DetectCrossroad() {
+  return (!digitalRead(IR_FAR_LEFT) && !digitalRead(IR_LEFT) && !digitalRead(IR_RIGHT) && !digitalRead(IR_FAR_RIGHT));
 }
 
 bool AdjustLeft() {
-  if (digitalRead(IR_LEFT) && digitalRead(IR_MIDDLE) && !digitalRead(IR_RIGHT)) { return true; }
-  else { return false; }
+  return (digitalRead(IR_FAR_LEFT) && !digitalRead(IR_LEFT) && digitalRead(IR_RIGHT) && digitalRead(IR_FAR_RIGHT));
 }
 
 bool AdjustRight() {
-  if (!digitalRead(IR_RIGHT) && digitalRead(IR_MIDDLE) && digitalRead(IR_RIGHT)) { return true; }
-  else { return false; }
+  return (digitalRead(IR_FAR_LEFT) && digitalRead(IR_LEFT) && !digitalRead(IR_RIGHT) && digitalRead(IR_FAR_RIGHT));
+}
+
+bool DetectStraight() {
+  return (!digitalRead(IR_FAR_LEFT) && !digitalRead(IR_LEFT) && !digitalRead(IR_RIGHT) && !digitalRead(IR_FAR_RIGHT));
 }
 
 #pragma endregion
@@ -338,27 +418,31 @@ void LEDSetupPhase() {
   delay(500);
 }
 
-void LEDSecurityPhase() {
+void LEDSecurityPhaseHIGH() {
   digitalWrite(LED_LEFT, HIGH);
   digitalWrite(LED_MIDDLE, HIGH);
   digitalWrite(LED_RIGHT, HIGH);
+}
 
-  delay(250);
-
+void LEDSecurityPhaseLOW() {
   digitalWrite(LED_LEFT, LOW);
   digitalWrite(LED_MIDDLE, LOW);
   digitalWrite(LED_RIGHT, LOW);
+}
 
-  delay(250);
+#pragma endregion
+
+#pragma region Funções do Botão
+
+void SetButtonSettings() {
+  pinMode(BACK_BUTTON, INPUT);
+  pinMode(CONFIRM_BUTTON, INPUT);
+  pinMode(NEXT_BUTTON, INPUT);
 }
 
 #pragma endregion
 
 #pragma region Funções do Buzzer
-
-// void SetBuzzerSettings() {
-//   pinMode(BUZZER, OUTPUT);
-// }
 
 void SetBuzzerTone(uint16_t frequency, uint16_t length) {
   /*
@@ -390,83 +474,465 @@ void SetBuzzerTone(uint16_t frequency, uint16_t length) {
 
 #pragma region Funções da rotina
 
-void LoadRobot() {
-  LEDSetupPhase();
-
-  waitTime = 500; // 500ms
-  float weight = scale.get_units(10);
-
-  bool confirmWeight = false;
-  bool resetWeight = false;
-
-  // LCD.setCursor(0, 0);
-  LCD.print("Peso: ");
-  LCD.print(weight);
-  LCD.clear(); // testar
-
-  if (digitalRead(CONFIRM_BUTTON)) {
-    initialTime = millis();
+bool HasLoadedRobot() {
+  if (!hasCleared) {
     LCD.clear();
-
-    while (Timer(initialTime, waitTime)) { LEDSetupPhase(); }
-
-    do {
-      LEDSetupPhase();
-      LCD.print("Voce deseja confirmar?");
-
-      confirmWeight = digitalRead(CONFIRM_BUTTON);
-      resetWeight = digitalRead(NEXT_BUTTON);
-    } while (!resetWeight && !confirmWeight);
-
-    if (resetWeight) { hasConfirmedWeight = false; }
-    else if (confirmWeight) { hasConfirmedWeight = true; }
+    LCD.setCursor(0, 0);
+    LCD.print("Confirmacao");
+    LCD.setCursor(0, 1);
+    LCD.print("do peso");
+    delay(2500);
+    LCD.clear();
+    hasCleared = true;
   }
-}
 
-void SelectPath() {
-  LEDSetupPhase();
+  while (!digitalRead(BACK_BUTTON) && !digitalRead(CONFIRM_BUTTON)) {
+    LCD.setCursor(0, 0);
+    LCD.print("Peso (kg): ");
+    LCD.print(abs(scale.get_units(10)));
+  }
 
-  waitTime = 500; // 500ms
-  uint8_t pathChoices[3] = {1, 2, 3};
-  uint8_t pathOrder[3];
-  uint8_t timesPressed = 0;
+  if (digitalRead(BACK_BUTTON)) {
+    LCD.clear();
+    return false;
+  }
 
-  bool resetSelection = false;
-  bool confirmSelection = false;
-
-  for (int i = 0; i < STATION_AMOUNT; i++) {
+  else if (digitalRead(CONFIRM_BUTTON)) {
+    LCD.clear();
+    delay(250);
+    
     while (!digitalRead(CONFIRM_BUTTON)) {
-      LEDSetupPhase();
-      LCD.print("Estação ");
-      LCD.print(pathChoices[timesPressed]);
+      LCD.setCursor(0, 0);
+      LCD.print("Voce deseja");
+      LCD.setCursor(0, 1);
+      LCD.print("confirmar?");
 
-      if (digitalRead(NEXT_BUTTON)) {
-        LEDSetupPhase();
+      if (digitalRead(BACK_BUTTON)) {
         LCD.clear();
-        timesPressed++;
-        if (timesPressed == 3) { timesPressed = 0; }
+        return false;
+      }
+      else if (digitalRead(CONFIRM_BUTTON)) {
+        LCD.clear();
+        LCD.setCursor(0, 0);
+        LCD.print("Peso");
+        LCD.setCursor(0, 1);
+        LCD.print("Confirmado");
+        delay(2500);
+        LCD.clear();
+        return true;
       }
     }
-    pathOrder[i] = pathChoices[timesPressed];
   }
-
-  initialTime = millis();
-
-  LCD.clear();
-  while (Timer(initialTime, waitTime)) { LEDSetupPhase(); }
-
-  do {
-    LEDSetupPhase();
-    LCD.print("Voce deseja confirmar?");
-
-    confirmSelection = digitalRead(CONFIRM_BUTTON);
-    resetSelection = digitalRead(NEXT_BUTTON);
-  } while (!resetSelection && !confirmSelection);
-
-  if (resetSelection) { hasConfirmedPath = false; }
-  else if (confirmSelection) { hasConfirmedPath = true; }
 }
 
+bool HasSelectedPath() {
+  uint8_t pathChoices[3] = {1, 2, 3};
+  uint8_t timesPressed = 0;
+  int8_t indexSelected[2] = {-1, -1};
+
+  bool hasConfirmed = false;
+
+  LCD.clear();
+  LCD.setCursor(0, 0);
+  LCD.print("Selecao");
+  LCD.setCursor(0, 1);
+  LCD.print("das estacoes");
+  delay(2500);
+  LCD.clear();
+
+  while (int i = 0 < STATION_AMOUNT) {
+    LCD.clear();
+    while (!digitalRead(NEXT_BUTTON) || !digitalRead(BACK_BUTTON)) {
+      LCD.setCursor(0, 0);
+      LCD.print("Estacao ");
+      LCD.print(pathChoices[i]);
+
+      if (digitalRead(NEXT_BUTTON)) {
+        if (i == 2) { i = 0; }
+        else { i++; }
+        for (int j = 0; j <= timesPressed; j++) {
+          if (indexSelected[j] == i) {
+            i++;
+          }
+        }
+        if (i > 2) { i = 0; }
+        delay(250);
+      }
+
+      else if (digitalRead(BACK_BUTTON)) {
+        if (i == 0) { i = 2; }
+        else { i--; }
+        for (int j = 0; j <= timesPressed; j++) {
+          if (indexSelected[j] == i) {
+            i--;
+          }
+        }
+        if (i < 0) { i = 2; }
+        delay(250);
+      }
+
+      else if (digitalRead(CONFIRM_BUTTON)) {
+        LCD.clear();
+        delay(250);
+
+        while (!digitalRead(CONFIRM_BUTTON)) {
+          LCD.setCursor(0, 0);
+          LCD.print("Voce deseja");
+          LCD.setCursor(0, 1);
+          LCD.print("confirmar?");
+          hasConfirmed = true;
+
+          if (digitalRead(BACK_BUTTON)) {
+            LCD.clear();
+            hasConfirmed = false;
+            break;
+          }
+        }
+        LCD.clear();
+        delay(250);
+
+        if (hasConfirmed) {
+          LCD.setCursor(0, 0);
+          LCD.print("Estacao");
+          LCD.setCursor(0, 1);
+          LCD.print("Confirmada");
+          delay(2500);
+
+          LCD.clear();
+
+          pathOrder[timesPressed] = pathChoices[i];
+          indexSelected[timesPressed] = i;
+          if (timesPressed == 2) {
+            LCD.clear();
+            LCD.setCursor(0, 0);
+            LCD.print("Ordem Estacoes:");
+            LCD.setCursor(0, 1);
+            for (int j = 0; j < STATION_AMOUNT; j++) {
+              LCD.print(pathOrder[j]);
+              if (j < 2) { LCD.print(" -> "); }
+            }
+            delay(2500);
+            LCD.clear();
+            return true;
+          }
+
+          timesPressed++;
+
+          i++;
+          for (int j = 0; j < 2; j++) {
+          if (indexSelected[j] == i) {
+            i++;
+          }
+        }
+          if (i > 2) { i = 0; }
+        }
+      }
+    }
+  }
+}
+
+bool HasComputedPaths() {
+  unsigned long startTimer;
+  bool isInStation = false;
+  float currentWeight;
+
+  switch (pathOrder[0]) {
+    case STATION1:
+        if (pathOrder[1] == STATION2) {
+          while (AdjustLeft()) { MotorAdjustLeft(); }
+          while (AdjustRight()) { MotorAdjustRight(); }
+          MotorMoveForward();
+
+          if (DetectCrossroad()) {
+            startTimer = millis();
+            while (Timer(startTimer, 750)) {
+              MotorMoveForward();
+              if (DetectCrossroad()) { isInStation = true; }
+            }
+
+            if (isInStation) {
+              MotorStop();
+              delay(250);
+
+              startTimer = millis();
+              while (Timer(startTimer, 2000)) { // Robo gira até virar 180°
+                MotorTurnRight();
+              }
+
+              startTimer = millis();
+              while (Timer(startTimer, 500)) { // Robo da ré para se ajustar na plataforma
+                MotorMoveBackwards();
+              }
+
+              MotorStop();
+              LCD.clear();
+              currentWeight = abs(scale.get_units(10));
+              while (!HasRemovedWeight(currentWeight)) {
+                LCD.setCursor(0, 0);
+                LCD.print("Por favor");
+                LCD.setCursor(0, 1);
+                LCD.print("Remover Carga");
+              }
+
+              if (!hasBeenToStation1) { hasBeenToStation1 = true; }
+              else if (!hasBeenToStation2) { hasBeenToStation2 = true; }
+              else { hasBeenToStation3 = true; }
+            }
+
+            else if (!hasBeenToStation1) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+
+            else if (!hasBeenToStation2) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+            else {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+          }
+
+          if (hasBeenToStation1 && hasBeenToStation2 && hasBeenToStation3) { break; }
+        }
+        else if (pathOrder[1] == STATION3) {
+          while (AdjustLeft()) { MotorAdjustLeft(); }
+          while (AdjustRight()) { MotorAdjustRight(); }
+          MotorMoveForward();
+
+          if (DetectCrossroad()) {
+            startTimer = millis();
+            while (Timer(startTimer, 750)) {
+              MotorMoveForward();
+              if (DetectCrossroad()) { isInStation = true; }
+            }
+
+            if (isInStation) {
+              MotorStop();
+              delay(250);
+
+              startTimer = millis();
+              while (Timer(startTimer, 2000)) { // Robo gira até virar 180°
+                MotorTurnRight();
+              }
+
+              startTimer = millis();
+              while (Timer(startTimer, 500)) { // Robo da ré para se ajustar na plataforma
+                MotorMoveBackwards();
+              }
+
+              MotorStop();
+              LCD.clear();
+              currentWeight = abs(scale.get_units(10));
+              while (!HasRemovedWeight(currentWeight)) {
+                LCD.setCursor(0, 0);
+                LCD.print("Por favor");
+                LCD.setCursor(0, 1);
+                LCD.print("Remover Carga");
+              }
+
+              if (!hasBeenToStation1) { hasBeenToStation1 = true; }
+              else if (!hasBeenToStation2) { hasBeenToStation2 = true; }
+              else { hasBeenToStation3 = true; }
+            }
+
+            else if (!hasBeenToStation1) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+
+            else if (!hasBeenToStation2) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+            else {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+          }
+
+          if (hasBeenToStation1 && hasBeenToStation2 && hasBeenToStation3) { break; }
+        }
+    case STATION2:
+        if (pathOrder[1] == STATION1) {
+          // estacao 2, estacao 1, estacao 3
+          if (hasBeenToStation1 && hasBeenToStation2 && hasBeenToStation3) { break; }
+        }
+        else if (pathOrder[1] == STATION3) {
+          // estacao 2, estacao 3, estacao 1
+          if (hasBeenToStation1 && hasBeenToStation2 && hasBeenToStation3) { break; }
+        }
+    case STATION3:
+        if (pathOrder[1] == STATION1) {
+          while (AdjustLeft()) { MotorAdjustLeft(); }
+          while (AdjustRight()) { MotorAdjustRight(); }
+          MotorMoveForward();
+
+          if (DetectCrossroad()) {
+            startTimer = millis();
+            while (Timer(startTimer, 750)) {
+              MotorMoveForward();
+              if (DetectCrossroad()) { isInStation = true; }
+            }
+
+            if (isInStation) {
+              MotorStop();
+              delay(250);
+
+              startTimer = millis();
+              while (Timer(startTimer, 2000)) { // Robo gira até virar 180°
+                MotorTurnRight();
+              }
+
+              startTimer = millis();
+              while (Timer(startTimer, 500)) { // Robo da ré para se ajustar na plataforma
+                MotorMoveBackwards();
+              }
+
+              MotorStop();
+              LCD.clear();
+              currentWeight = abs(scale.get_units(10));
+              while (!HasRemovedWeight(currentWeight)) {
+                LCD.setCursor(0, 0);
+                LCD.print("Por favor");
+                LCD.setCursor(0, 1);
+                LCD.print("Remover Carga");
+              }
+
+              if (!hasBeenToStation1) { hasBeenToStation1 = true; }
+              else if (!hasBeenToStation2) { hasBeenToStation2 = true; }
+              else { hasBeenToStation3 = true; }
+            }
+
+            else if (!hasBeenToStation1) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+
+            else if (!hasBeenToStation2) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+            else {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+          }
+
+          if (hasBeenToStation1 && hasBeenToStation2 && hasBeenToStation3) { break; }
+        }
+        else if (pathOrder[1] == STATION2) {
+          while (AdjustLeft()) { MotorAdjustLeft(); }
+          while (AdjustRight()) { MotorAdjustRight(); }
+          MotorMoveForward();
+
+          if (DetectCrossroad()) {
+            startTimer = millis();
+            while (Timer(startTimer, 750)) {
+              MotorMoveForward();
+              if (DetectCrossroad()) { isInStation = true; }
+            }
+
+            if (isInStation) {
+              MotorStop();
+              delay(250);
+
+              startTimer = millis();
+              while (Timer(startTimer, 2000)) { // Robo gira até virar 180°
+                MotorTurnRight();
+              }
+
+              startTimer = millis();
+              while (Timer(startTimer, 500)) { // Robo da ré para se ajustar na plataforma
+                MotorMoveBackwards();
+              }
+
+              MotorStop();
+              LCD.clear();
+              currentWeight = abs(scale.get_units(10));
+              while (!HasRemovedWeight(currentWeight)) {
+                LCD.setCursor(0, 0);
+                LCD.print("Por favor");
+                LCD.setCursor(0, 1);
+                LCD.print("Remover Carga");
+              }
+
+              if (!hasBeenToStation1) { hasBeenToStation1 = true; }
+              else if (!hasBeenToStation2) { hasBeenToStation2 = true; }
+              else { hasBeenToStation3 = true; }
+            }
+
+            else if (!hasBeenToStation1) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+
+            else if (!hasBeenToStation2) {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+            else {
+              MotorStop();
+              delay(250);
+              
+              while (Timer(startTimer, 1000)) { // Robo gira até virar 90°
+                MotorTurnLeft();
+              }
+            }
+          }
+
+          if (hasBeenToStation1 && hasBeenToStation2 && hasBeenToStation3) { break; }
+        }
+    default:
+        return false;
+    }
+    return true;
+} 
 
 #pragma endregion
 
@@ -487,7 +953,7 @@ void setup() {
 
   // SetLCDSettings();
 
-  // SetMotorSettings(VELOCITY, ACCELERATION); // Define os valores de velocidade e aceleração do motor
+  SetMotorSettings(VELOCITY, ACCELERATION); // Define os valores de velocidade e aceleração do motor
 }
 
 void loop() {
@@ -502,28 +968,29 @@ void loop() {
   // Robô segue para a proxima estação (passos anteriores são repetidos)
   // Quando o robô passar por todas as estações e não estiver carregando nada, ele volta para o inicio
 
-  // if (!hasConfirmedWeight) { LoadRobot(); } // Peso é colocado no robo
-  // else if (!hasConfirmedPath) { SelectPath(); } // Caminho é escolhido
+  // if (!HasComputedPaths()) {
+  //   LCD.clear();
+  //   LCD.setCursor(0, 0);
+  //   LCD.print("Failed Path");
+  //   LCD.setCursor(0, 1);
+  //   LCD.print("Calculation");
+  //   hasConfirmedWeight = false;
+  //   hasConfirmedPath = false;
+  //   delay(1000);
+  // }
 
-  // SetBuzzerTone(262, 500); Dó
-  // SetBuzzerTone(294, 500); Ré
-  // SetBuzzerTone(330, 500); Mi
-  // SetBuzzerTone(349, 500); Fá
-  // SetBuzzerTone(392, 500); Sol
-  // SetBuzzerTone(440, 500); Lá
-  // SetBuzzerTone(494, 500); Si
-  // SetBuzzerTone(528, 500); #Dó
+  // while (HasDetectedObstacle()) {
+  //   MotorStop();
+  //   LEDSecurityPhaseHIGH();
+  //   SetBuzzerTone(400, 500);
+  //   LEDSecurityPhaseLOW();
+  //   SetBuzzerTone(100, 500);
+  // }
 
-  if (HasDetectedObstacle()) {
-    SetBuzzerTone(400, 500);
-    // SetBuzzerTone(294, 500);
-    // SetBuzzerTone(330, 500);
-    // SetBuzzerTone(349, 500);
-    // SetBuzzerTone(392, 500);
-    // SetBuzzerTone(440, 500);
-    // SetBuzzerTone(494, 500);
-    SetBuzzerTone(100, 500);
-  }
+  // while (!hasConfirmedWeight) { hasConfirmedWeight = HasLoadedRobot(); }
+  // while (!hasConfirmedPath) { hasConfirmedPath = HasSelectedPath(); }
+
+  while(true) { MotorMoveForward();} 
 
   delay(10); // Pequeno delay para evitar processamento excessivo
 }
