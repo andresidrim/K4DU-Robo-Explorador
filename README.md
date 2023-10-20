@@ -5,8 +5,8 @@ K4DU é um Robô Explorador feito para ser usado em ambientes controlados, sendo
 Carregar itens em um ambiente controlado de forma autônoma e segura, se guiando por meio de linhas que indicam o seu caminho
 
 # Integrantes
-Matheus Tsuchiya - Líder
-André Sidrim
-Elissandra Abdon
-Jorge Vasconcelos
+Matheus Tsuchiya - Líder<br/>
+André Sidrim<br/>
+Elissandra Abdon<br/>
+Jorge Vasconcelos<br/>
 Edgar Klewert
